@@ -1179,6 +1179,7 @@ void pagefault_out_of_memory(void)
 		pr_warn("Huh VM_FAULT_OOM leaked out to the #PF handler. Retrying PF\n");
 }
 
+#ifndef CONFIG_ANDROID_SIMPLE_LMK
 SYSCALL_DEFINE2(process_mrelease, int, pidfd, unsigned int, flags)
 {
 #ifdef CONFIG_MMU
@@ -1257,3 +1258,4 @@ put_pid:
 	return -ENOSYS;
 #endif /* CONFIG_MMU */
 }
+#endif
