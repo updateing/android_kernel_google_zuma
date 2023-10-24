@@ -341,7 +341,7 @@ static int verify_temp_stuck(tr_handle instance, enum abnormality_type *abnormal
 	read_unlock(&thermal_group->lock);
 
 	*abnormality_type = SENSOR_STUCK;
-	pr_debug("Thermal Abnormality Detected: sensor:%s temp:%d stuck %d cnt %d ms",
+	pr_debug("Thermal Abnormality Detected: sensor:%s temp:%d stuck %d cnt %lld ms",
 		stats->name, temp_sample->temp, temp_sample->repeat_ct, repeat_msecs);
 	report_thermal_abnormal_uevent(instance, *abnormality_type, temp_sample->temp);
 
