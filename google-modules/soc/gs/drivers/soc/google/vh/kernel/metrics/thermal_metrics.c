@@ -478,6 +478,11 @@ int temp_residency_stats_update(tr_handle instance, int temp)
 	if (instance < 0 || instance > MAX_NUM_SUPPORTED_THERMAL_ZONES)
 		return -EINVAL;
 	stats = &residency_stat_array[instance];
+
+	/* Avoid using uninitialized stats */
+	if (stats->name[0] == '\0')
+		return -EINVAL;
+
 	prev_sample = &stats->prev;
 	curr_bucket = get_curr_bucket(instance, temp);
 	if (!stats->started) {
