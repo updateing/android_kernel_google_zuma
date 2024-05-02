@@ -435,7 +435,7 @@ static int exynos5_i2c_set_timing(struct exynos5_i2c *i2c, int mode)
 		writel(utemp | (utstart_hd_fs << 16), i2c->regs +
 				HSI2C_TIMING_FS1);
 
-		dev_info(i2c->dev, "%s IPCLK = %d OP_CLK = %d DIV = %d TIMING FS1(STAND) = 0x%X TIMING FS2(STAND) = 0x%X TIMING FS3(STAND) = 0x%X\n",
+		dev_dbg(i2c->dev, "%s IPCLK = %d OP_CLK = %d DIV = %d TIMING FS1(STAND) = 0x%X TIMING FS2(STAND) = 0x%X TIMING FS3(STAND) = 0x%X\n",
 			 __func__, ipclk, op_clk, fs_div,
 				readl(i2c->regs + HSI2C_TIMING_FS1),
 				readl(i2c->regs + HSI2C_TIMING_FS2),
@@ -483,7 +483,7 @@ static int exynos5_i2c_set_timing(struct exynos5_i2c *i2c, int mode)
 		writel(utemp | (utstart_hd_fs << 16), i2c->regs +
 				HSI2C_TIMING_FS1);
 
-		dev_info(i2c->dev, "%s IPCLK = %d OP_CLK = %d DIV = %d TIMING FS1(FS+) = 0x%X TIMING FS2(FS+) = 0x%X TIMING FS3(FS+) = 0x%X\n",
+		dev_dbg(i2c->dev, "%s IPCLK = %d OP_CLK = %d DIV = %d TIMING FS1(FS+) = 0x%X TIMING FS2(FS+) = 0x%X TIMING FS3(FS+) = 0x%X\n",
 			 __func__, ipclk, op_clk, fs_div,
 				readl(i2c->regs + HSI2C_TIMING_FS1),
 				readl(i2c->regs + HSI2C_TIMING_FS2),
@@ -529,7 +529,7 @@ static int exynos5_i2c_set_timing(struct exynos5_i2c *i2c, int mode)
 		writel(utemp | (utstart_hd_hs << 16), i2c->regs +
 				HSI2C_TIMING_HS1);
 
-		dev_info(i2c->dev, "%s IPCLK = %d OP_CLK = %d DIV = %d TIMING HS1 = 0x%08X TIMING HS2 = 0x%08X TIMING HS3 = 0x%08X\n",
+		dev_dbg(i2c->dev, "%s IPCLK = %d OP_CLK = %d DIV = %d TIMING HS1 = 0x%08X TIMING HS2 = 0x%08X TIMING HS3 = 0x%08X\n",
 			 __func__, ipclk, op_clk, hs_div,
 				readl(i2c->regs + HSI2C_TIMING_HS1),
 				readl(i2c->regs + HSI2C_TIMING_HS2),
@@ -576,7 +576,7 @@ static int exynos5_i2c_set_timing(struct exynos5_i2c *i2c, int mode)
 		writel(utemp | (utstart_hd_fs << 16), i2c->regs +
 				HSI2C_TIMING_FS1);
 
-		dev_info(i2c->dev, "%s IPCLK = %d OP_CLK = %d DIV = %d Timing FS1 = 0x%X TIMING FS2 = 0x%X TIMING FS3 = 0x%X\n",
+		dev_dbg(i2c->dev, "%s IPCLK = %d OP_CLK = %d DIV = %d Timing FS1 = 0x%X TIMING FS2 = 0x%X TIMING FS3 = 0x%X\n",
 			 __func__, ipclk, op_clk, fs_div,
 				readl(i2c->regs + HSI2C_TIMING_FS1),
 				readl(i2c->regs + HSI2C_TIMING_FS2),
@@ -726,11 +726,11 @@ static irqreturn_t exynos5_i2c_irq(int irqno, void *dev_id)
 	 */
 	if (reg_val & HSI2C_INT_CHK_TRANS_STATE) {
 		trans_status = readl(i2c->regs + HSI2C_TRANS_STATUS);
-		dev_err(i2c->dev, "HSI2C Error Interrupt occurred(IS:0x%08x, TR:0x%08x) for %#x\n",
+		dev_dbg(i2c->dev, "HSI2C Error Interrupt occurred(IS:0x%08x, TR:0x%08x) for %#x\n",
 			(unsigned int)reg_val, (unsigned int)trans_status, (i2c->msg->addr & 0x7f));
 
 		if (reg_val & HSI2C_INT_NODEV) {
-			dev_err(i2c->dev, "HSI2C NO ACK occurred for %#x\n",
+			dev_dbg(i2c->dev, "HSI2C NO ACK occurred for %#x\n",
 				(i2c->msg->addr & 0x7f));
 			if (i2c->nack_restart) {
 				if (reg_val & HSI2C_INT_TRANSFER_DONE)
@@ -926,7 +926,7 @@ static int exynos5_i2c_xfer_msg(struct exynos5_i2c *i2c,
 		disable_irq(i2c->irq);
 
 		if (i2c->trans_done < 0) {
-			dev_err(i2c->dev, "ack was not received at read\n");
+			dev_dbg(i2c->dev, "ack was not received at read\n");
 			ret = i2c->trans_done;
 			exynos5_i2c_reset(i2c);
 		}
@@ -987,7 +987,7 @@ static int exynos5_i2c_xfer_msg(struct exynos5_i2c *i2c,
 
 		timeout = jiffies + timeout;
 		if (i2c->trans_done < 0) {
-			dev_err(i2c->dev, "ack was not received at write\n");
+			dev_dbg(i2c->dev, "ack was not received at write\n");
 			ret = i2c->trans_done;
 			exynos5_i2c_reset(i2c);
 			return ret;
