@@ -37,6 +37,8 @@
 
 #define DEFAULT_WIN	0
 
+#define LINEAR_MATRIX_OVERRIDE_SCALE_FACTOR  0x1fff
+
 
 #define to_exynos_crtc(x)	container_of(x, struct exynos_drm_crtc, base)
 #define to_exynos_plane(x)	container_of(x, struct exynos_drm_plane, base)
@@ -255,6 +257,7 @@ struct exynos_drm_crtc_state {
 	struct drm_property_blob *disp_dither;
 	struct drm_property_blob *cgc_dither;
 	struct drm_property_blob *linear_matrix;
+	struct drm_property_blob *linear_matrix_override;
 	struct drm_property_blob *gamma_matrix;
 	/* legacy histogram properties */
 	struct drm_property_blob *histogram_roi;
@@ -296,6 +299,8 @@ struct exynos_drm_crtc_state {
 	struct drm_property_blob *partial;
 	bool needs_reconfigure;
 
+	struct exynos_matrix linear_matrix_cache;
+
 	struct kthread_work commit_work;
 };
 
@@ -328,6 +333,7 @@ struct exynos_drm_crtc {
 		struct drm_property *ppc;
 		struct drm_property *max_disp_freq;
 		struct drm_property *linear_matrix;
+		struct drm_property *linear_matrix_override;
 		struct drm_property *gamma_matrix;
 		struct drm_property *dqe_enabled;
 		struct drm_property *partial;
