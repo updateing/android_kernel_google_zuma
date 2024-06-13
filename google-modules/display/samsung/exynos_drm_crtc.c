@@ -39,6 +39,72 @@ enum crtc_active_state {
 	CRTC_STATE_SELF_REFRESH,
 };
 
+/* We cannot commit changes from from panel driver so we have to keep the
+ * matrices as global variables.
+ */
+static struct exynos_matrix linear_matrix_override;
+static int linear_matrix_override_enabled;
+
+static void exynos_drm_crtc_apply_linear_matrix_override(const struct exynos_matrix *original,
+							 const struct exynos_matrix *override,
+							 struct exynos_matrix *output)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(output->coeffs); i++)
+		output->coeffs[i] = (uint32_t)original->coeffs[i] * override->coeffs[i] /
+				    LINEAR_MATRIX_OVERRIDE_SCALE_FACTOR;
+
+	for (i = 0; i < ARRAY_SIZE(output->offsets); i++)
+		output->offsets[i] = (uint32_t)original->offsets[i] * override->offsets[i] /
+				     LINEAR_MATRIX_OVERRIDE_SCALE_FACTOR;
+}
+
+static struct exynos_matrix *exynos_drm_crtc_get_linear_matrix(struct drm_crtc_state *state)
+{
+	struct exynos_drm_crtc_state *exynos_state;
+	const struct exynos_matrix *original, *override;
+	struct exynos_matrix *output;
+	static const struct exynos_matrix default_matrix = {
+		.coeffs = {
+			0x1fff, 0, 0, // 0x1fff is 100% in DQE terms
+			0, 0x1fff, 0,
+			0, 0, 0x1fff
+		},
+		.offsets = {
+			0,
+			0,
+			0
+		}
+	};
+
+	exynos_state = to_exynos_crtc_state(state);
+
+	if (exynos_state->linear_matrix) {
+		original = exynos_state->linear_matrix->data;
+	} else {
+		original = NULL;
+	}
+
+	if (!linear_matrix_override_enabled) {
+		output = (struct exynos_matrix *) original;
+		goto exit;
+	}
+
+	override = &linear_matrix_override;
+
+	/* We need a base matrix to apply override on, load our default matrix here */
+	if (!original)
+		original = &default_matrix;
+
+	output = &exynos_state->linear_matrix_cache;
+
+	exynos_drm_crtc_apply_linear_matrix_override(original, override, output);
+
+exit:
+	return output;
+}
+
 static void exynos_drm_crtc_atomic_enable(struct drm_crtc *crtc,
 					  struct drm_atomic_state *state)
 {
@@ -126,10 +192,7 @@ static void exynos_crtc_update_lut(struct drm_crtc *crtc,
 			dqe_state->hist_chan[i].config = NULL;
 	}
 
-	if (exynos_state->linear_matrix)
-		dqe_state->linear_matrix = exynos_state->linear_matrix->data;
-	else
-		dqe_state->linear_matrix = NULL;
+	dqe_state->linear_matrix = exynos_drm_crtc_get_linear_matrix(state);
 
 	if (exynos_state->gamma_matrix)
 		dqe_state->gamma_matrix = exynos_state->gamma_matrix->data;
@@ -390,6 +453,7 @@ static void exynos_drm_crtc_destroy_state(struct drm_crtc *crtc,
 	drm_property_blob_put(exynos_crtc_state->disp_dither);
 	drm_property_blob_put(exynos_crtc_state->cgc_dither);
 	drm_property_blob_put(exynos_crtc_state->linear_matrix);
+	drm_property_blob_put(exynos_crtc_state->linear_matrix_override);
 	drm_property_blob_put(exynos_crtc_state->gamma_matrix);
 	drm_property_blob_put(exynos_crtc_state->histogram_roi);
 	drm_property_blob_put(exynos_crtc_state->histogram_weights);
@@ -446,6 +510,9 @@ exynos_drm_crtc_duplicate_state(struct drm_crtc *crtc)
 
 	if (copy->linear_matrix)
 		drm_property_blob_get(copy->linear_matrix);
+
+	if (copy->linear_matrix_override)
+		drm_property_blob_get(copy->linear_matrix_override);
 
 	if (copy->gamma_matrix)
 		drm_property_blob_get(copy->gamma_matrix);
@@ -690,6 +757,25 @@ static int exynos_drm_crtc_set_property(struct drm_crtc *crtc,
 		ret = exynos_drm_replace_property_blob_from_id(state->crtc->dev,
 				&exynos_crtc_state->linear_matrix, val,
 				sizeof(struct exynos_matrix), -1, &replaced);
+	} else if (property == exynos_crtc->props.linear_matrix_override) {
+		/* This blob will never get any non-null value set as we cannot
+		 * commit changes from the panel driver. Force a change here
+		 * so that setting null matrix works.
+		 */
+		ret = exynos_drm_replace_property_blob_from_id(state->crtc->dev,
+				&exynos_crtc_state->linear_matrix_override, val,
+				sizeof(struct exynos_matrix), -1, &replaced);
+
+		replaced = true;
+
+		if (val == 0) {
+			linear_matrix_override_enabled = 0;
+		} else {
+			linear_matrix_override_enabled = 1;
+			memcpy(&linear_matrix_override,
+					exynos_crtc_state->linear_matrix_override->data,
+					sizeof(linear_matrix_override));
+		}
 	} else if (property == exynos_crtc->props.gamma_matrix) {
 		ret = exynos_drm_replace_property_blob_from_id(state->crtc->dev,
 				&exynos_crtc_state->gamma_matrix, val,
@@ -783,6 +869,9 @@ static int exynos_drm_crtc_get_property(struct drm_crtc *crtc,
 	} else if (property == exynos_crtc->props.linear_matrix) {
 		*val = (exynos_crtc_state->linear_matrix) ?
 			exynos_crtc_state->linear_matrix->base.id : 0;
+	} else if (property == exynos_crtc->props.linear_matrix_override) {
+		*val = (exynos_crtc_state->linear_matrix_override) ?
+			exynos_crtc_state->linear_matrix_override->base.id : 0;
 	} else if (property == exynos_crtc->props.gamma_matrix) {
 		*val = (exynos_crtc_state->gamma_matrix) ?
 			exynos_crtc_state->gamma_matrix->base.id : 0;
@@ -1199,6 +1288,11 @@ struct exynos_drm_crtc *exynos_drm_crtc_create(struct drm_device *drm_dev,
 
 		ret = exynos_drm_crtc_create_blob(crtc, "linear_matrix",
 				&exynos_crtc->props.linear_matrix);
+		if (ret)
+			goto err_crtc;
+
+		ret = exynos_drm_crtc_create_blob(crtc, "linear_matrix_override",
+				&exynos_crtc->props.linear_matrix_override);
 		if (ret)
 			goto err_crtc;
 
