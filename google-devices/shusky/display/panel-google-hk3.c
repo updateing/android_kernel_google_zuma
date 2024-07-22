@@ -368,6 +368,46 @@ static const struct exynos_binned_lp hk3_binned_lp[] = {
 			      HK3_TE2_RISING_EDGE_OFFSET, HK3_TE2_FALLING_EDGE_OFFSET)
 };
 
+u8 freq_cmd[4] = {0x00, 0x43, 0x43, 0x03};
+module_param_array(freq_cmd, byte, NULL, 0644);
+
+static void hk3_send_dimming_freq_cmd(struct exynos_panel *ctx, int need_unlock, const u8 *cmd)
+{
+	struct hk3_panel *spanel = to_spanel(ctx);
+
+	if (need_unlock)
+		EXYNOS_DCS_BUF_ADD_SET(ctx, unlock_cmd_f0);
+
+	if (test_bit(FEAT_EARLY_EXIT, spanel->feat)) {
+		if (test_bit(FEAT_HBM, spanel->feat))
+			EXYNOS_DCS_BUF_ADD(ctx, 0xBD, 0x21, 0x00, 0x83, 0x03, 0x01);
+		else
+			EXYNOS_DCS_BUF_ADD(ctx, 0xBD, 0x21, cmd[0], cmd[1], cmd[2], cmd[3]);
+	} else {
+		if (test_bit(FEAT_HBM, spanel->feat))
+			EXYNOS_DCS_BUF_ADD(ctx, 0xBD, 0x21, 0x80, 0x83, 0x03, 0x01);
+		else
+			EXYNOS_DCS_BUF_ADD(ctx, 0xBD, 0x21, cmd[0] | 0x80, cmd[1], cmd[2], cmd[3]);
+	}
+
+	if (need_unlock) {
+		EXYNOS_DCS_BUF_ADD_SET(ctx, freq_update);
+		EXYNOS_DCS_BUF_ADD_SET_AND_FLUSH(ctx, lock_cmd_f0);
+	}
+}
+
+static void hk3_set_default_dimming(struct exynos_panel *ctx, int need_unlock)
+{
+	static const u8 cmd[4] = {0x01, 0x83, 0x03, 0x03};
+
+	hk3_send_dimming_freq_cmd(ctx, need_unlock, cmd);
+}
+
+static void hk3_set_override_dimming(struct exynos_panel *ctx, int need_unlock)
+{
+	hk3_send_dimming_freq_cmd(ctx, need_unlock, freq_cmd);
+}
+
 static inline bool is_in_comp_range(int temp)
 {
 	return (temp >= 10 && temp <= 49);
@@ -670,17 +710,10 @@ static void hk3_set_panel_feat(struct exynos_panel *ctx,
 	 *
 	 * Description: early-exit sequence overrides some configs HBM set.
 	 */
-	if (test_bit(FEAT_EARLY_EXIT, feat)) {
-		if (test_bit(FEAT_HBM, feat))
-			EXYNOS_DCS_BUF_ADD(ctx, 0xBD, 0x21, 0x00, 0x83, 0x03, 0x01);
-		else
-			EXYNOS_DCS_BUF_ADD(ctx, 0xBD, 0x21, 0x01, 0x83, 0x03, 0x03);
-	} else {
-		if (test_bit(FEAT_HBM, feat))
-			EXYNOS_DCS_BUF_ADD(ctx, 0xBD, 0x21, 0x80, 0x83, 0x03, 0x01);
-		else
-			EXYNOS_DCS_BUF_ADD(ctx, 0xBD, 0x21, 0x81, 0x83, 0x03, 0x03);
-	}
+	if (is_panel_enabled(ctx))
+		hk3_set_override_dimming(ctx, 0);
+	else
+		hk3_set_default_dimming(ctx, 0);
 	EXYNOS_DCS_BUF_ADD(ctx, 0xB0, 0x00, 0x10, 0xBD);
 	val = test_bit(FEAT_EARLY_EXIT, feat) ? 0x22 : 0x00;
 	EXYNOS_DCS_BUF_ADD(ctx, 0xBD, val);
@@ -2019,12 +2052,18 @@ static void hk3_set_local_hbm_mode(struct exynos_panel *ctx,
 {
 	const struct exynos_panel_mode *pmode = ctx->current_mode;
 
+	if (local_hbm_en)
+		hk3_set_default_dimming(ctx, 1);
+
 	/* TODO: LHBM Position & Size */
 	hk3_write_display_mode(ctx, &pmode->mode);
 
 	if (local_hbm_en)
 		hk3_set_local_hbm_brightness(ctx, true);
 
+	if (!local_hbm_en) {
+		hk3_set_override_dimming(ctx, 1);
+	}
 }
 
 static void hk3_set_local_hbm_mode_post(struct exynos_panel *ctx)
