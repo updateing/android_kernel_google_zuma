@@ -19,6 +19,7 @@
 #include "include/trace/dpu_trace.h"
 #include "include/trace/panel_trace.h"
 #include "panel/panel-samsung-drv.h"
+#include "exposure-adj.h"
 
 /**
  * enum hk3_panel_feature - features supported by this panel
@@ -151,6 +152,8 @@ struct hk3_panel {
 	bool hw_za_enabled;
 	/** @force_za_off: force to turn off zonal attenuation */
 	bool force_za_off;
+	/** @requested_brightness: requested brightness before exposure adjustment */
+	u16 requested_brightness;
 	/** @lhbm_ctl: lhbm brightness control */
 	struct hk3_lhbm_ctl lhbm_ctl;
 	/** @material: the material version used in panel */
@@ -368,8 +371,17 @@ static const struct exynos_binned_lp hk3_binned_lp[] = {
 			      HK3_TE2_RISING_EDGE_OFFSET, HK3_TE2_FALLING_EDGE_OFFSET)
 };
 
+int use_linear_matrix = 1;
+module_param(use_linear_matrix, int, 0644);
+
+int use_segmented_dimming = 0;
+module_param(use_segmented_dimming, int, 0644);
+
 u8 freq_cmd[4] = {0x00, 0x43, 0x43, 0x03};
 module_param_array(freq_cmd, byte, NULL, 0644);
+
+u8 freq_cmd_high_brightness[4] = {0x00, 0x43, 0x43, 0x03};
+module_param_array(freq_cmd_high_brightness, byte, NULL, 0644);
 
 static void hk3_send_dimming_freq_cmd(struct exynos_panel *ctx, int need_unlock, const u8 *cmd)
 {
@@ -405,7 +417,16 @@ static void hk3_set_default_dimming(struct exynos_panel *ctx, int need_unlock)
 
 static void hk3_set_override_dimming(struct exynos_panel *ctx, int need_unlock)
 {
-	hk3_send_dimming_freq_cmd(ctx, need_unlock, freq_cmd);
+	struct hk3_panel *spanel = to_spanel(ctx);
+	u8 *cmd;
+
+	if (use_segmented_dimming && spanel->requested_brightness > DIMMING_SWITCH_THRESHOLD) {
+		cmd = freq_cmd_high_brightness;
+	} else {
+		cmd = freq_cmd;
+	}
+
+	hk3_send_dimming_freq_cmd(ctx, need_unlock, cmd);
 }
 
 static inline bool is_in_comp_range(int temp)
@@ -1352,7 +1373,7 @@ static void hk3_set_acl_mode(struct exynos_panel *ctx, enum exynos_acl_mode mode
 static int hk3_set_brightness(struct exynos_panel *ctx, u16 br)
 {
 	int ret;
-	u16 brightness;
+	u16 brightness, orig_br;
 	struct hk3_panel *spanel = to_spanel(ctx);
 
 	if (ctx->current_mode->exynos_mode.is_lp_mode) {
@@ -1382,10 +1403,14 @@ static int hk3_set_brightness(struct exynos_panel *ctx, u16 br)
 		spanel->is_pixel_off = false;
 	}
 
+	orig_br = br;
+	if (use_linear_matrix)
+		br = ea_panel_calc_backlight(br);
 	brightness = (br & 0xff) << 8 | br >> 8;
 	ret = exynos_dcs_set_brightness(ctx, brightness);
 	if (!ret) {
 		spanel->hw_dbv = br;
+		spanel->requested_brightness = orig_br;
 		hk3_set_acl_mode(ctx, ctx->acl_mode);
 	}
 
