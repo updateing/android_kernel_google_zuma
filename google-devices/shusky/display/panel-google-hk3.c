@@ -380,8 +380,14 @@ module_param(use_segmented_dimming, int, 0644);
 u8 freq_cmd[4] = {0x00, 0x43, 0x43, 0x03};
 module_param_array(freq_cmd, byte, NULL, 0644);
 
+u8 freq_cmd_ns[4] = {0x00, 0x43, 0x43, 0x03};
+module_param_array(freq_cmd_ns, byte, NULL, 0644);
+
 u8 freq_cmd_high_brightness[4] = {0x00, 0x43, 0x43, 0x03};
 module_param_array(freq_cmd_high_brightness, byte, NULL, 0644);
+
+u8 freq_cmd_high_brightness_ns[4] = {0x00, 0x43, 0x43, 0x03};
+module_param_array(freq_cmd_high_brightness_ns, byte, NULL, 0644);
 
 static void hk3_send_dimming_freq_cmd(struct exynos_panel *ctx, int need_unlock, const u8 *cmd)
 {
@@ -418,12 +424,14 @@ static void hk3_set_default_dimming(struct exynos_panel *ctx, int need_unlock)
 static void hk3_set_override_dimming(struct exynos_panel *ctx, int need_unlock)
 {
 	struct hk3_panel *spanel = to_spanel(ctx);
+	bool is_ns_mode = test_bit(FEAT_OP_NS, spanel->feat);
+	bool is_sub120 = spanel->hw_vrefresh < 120;
 	u8 *cmd;
 
 	if (use_segmented_dimming && spanel->requested_brightness > DIMMING_SWITCH_THRESHOLD) {
-		cmd = freq_cmd_high_brightness;
+		cmd = (is_ns_mode || is_sub120) ? freq_cmd_high_brightness_ns : freq_cmd_high_brightness;
 	} else {
-		cmd = freq_cmd;
+		cmd = (is_ns_mode || is_sub120) ? freq_cmd_ns : freq_cmd;
 	}
 
 	hk3_send_dimming_freq_cmd(ctx, need_unlock, cmd);
