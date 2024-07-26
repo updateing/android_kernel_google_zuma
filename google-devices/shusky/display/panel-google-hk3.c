@@ -389,7 +389,7 @@ module_param(use_segmented_dimming, int, 0644);
 int segmented_dimming_switch_threshold = HK3_DIMMING_SWITCH_THRESHOLD_DEFAULT;
 module_param(segmented_dimming_switch_threshold, int, 0644);
 
-u8 freq_cmd[4] = {0x00, 0x43, 0x43, 0x03};
+u8 freq_cmd[4] = {0x04, 0x43, 0x43, 0x03};
 module_param_array(freq_cmd, byte, NULL, 0644);
 
 u8 freq_cmd_ns[4] = {0x00, 0x43, 0x43, 0x03};
@@ -401,7 +401,7 @@ module_param_array(freq_cmd_high_brightness, byte, NULL, 0644);
 u8 freq_cmd_high_brightness_ns[4] = {0x00, 0x43, 0x43, 0x03};
 module_param_array(freq_cmd_high_brightness_ns, byte, NULL, 0644);
 
-u8 freq_cmd_hbm[4] = {0x00, 0x43, 0x43, 0x03};
+u8 freq_cmd_hbm[4] = {0x04, 0x43, 0x43, 0x03};
 module_param_array(freq_cmd_hbm, byte, NULL, 0644);
 
 u8 freq_cmd_hbm_ns[4] = {0x00, 0x43, 0x43, 0x03};

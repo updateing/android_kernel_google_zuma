@@ -28,7 +28,7 @@
  * (RR = BB = GG = requested brightness / this value * 100%)
  * on the image to bring the actual brightness down.
  */
-#define LINEAR_MATRIX_APPLY_THRESHOLD_DEFAULT        1400
+#define LINEAR_MATRIX_APPLY_THRESHOLD_DEFAULT        3000
 
 u32 ea_panel_calc_backlight(unsigned int bl_lvl);
 
