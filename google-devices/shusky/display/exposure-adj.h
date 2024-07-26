@@ -28,17 +28,8 @@
  * (RR = BB = GG = requested brightness / this value * 100%)
  * on the image to bring the actual brightness down.
  */
-#define LINEAR_MATRIX_APPLY_THRESHOLD        1400
+#define LINEAR_MATRIX_APPLY_THRESHOLD_DEFAULT        1400
 
-/**
- * When segmented dimming is enabled, brightness higher than this is treated as
- * high brightness and uses freq_cmd_high_brightness for backlight control.
- * Otherwise freq_cmd is used.
- *
- * This feature is not turned on by default, and the default value is not tuned.
- */
-#define DIMMING_SWITCH_THRESHOLD   600
-
-u32 ea_panel_calc_backlight(u32 bl_lvl);
+u32 ea_panel_calc_backlight(unsigned int bl_lvl);
 
 #endif /* EXPOSURE_ADJUSTMENT_H */
