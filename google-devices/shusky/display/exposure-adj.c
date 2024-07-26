@@ -18,10 +18,15 @@
  *
  */
 
+#include <linux/module.h>
+
 #include "exynos_drm_decon.h"
 #include "exynos_drm_drv.h"
 
 #include "exposure-adj.h"
+
+int linear_matrix_application_threshold = LINEAR_MATRIX_APPLY_THRESHOLD_DEFAULT;
+module_param(linear_matrix_application_threshold, int, 0644);
 
 static int ea_set_matrix(struct drm_crtc *crtc, unsigned int bl_lvl)
 {
@@ -84,7 +89,7 @@ static int ea_set_matrix(struct drm_crtc *crtc, unsigned int bl_lvl)
 	matrix.offsets[2] = ofs;
 
 	coef = bl_lvl * LINEAR_MATRIX_OVERRIDE_SCALE_FACTOR /
-	       LINEAR_MATRIX_APPLY_THRESHOLD;
+	       linear_matrix_application_threshold;
 	matrix.coeffs[0] = coef;
 	matrix.coeffs[1] = coef;
 	matrix.coeffs[2] = coef;
@@ -133,9 +138,13 @@ unsigned int ea_panel_calc_backlight(unsigned int bl_lvl)
 {
 	struct decon_device *decon = get_decon_drvdata(0);
 
-	if (bl_lvl != 0 && bl_lvl < LINEAR_MATRIX_APPLY_THRESHOLD) {
+	if (linear_matrix_application_threshold == 0) {
+		linear_matrix_application_threshold = 1; // avoid dividing by 0
+	}
+
+	if (bl_lvl != 0 && bl_lvl < linear_matrix_application_threshold) {
 		ea_set_matrix(&decon->crtc->base, bl_lvl);
-		return LINEAR_MATRIX_APPLY_THRESHOLD;
+		return linear_matrix_application_threshold;
 	} else {
 		ea_set_matrix(&decon->crtc->base, 0);
 		return bl_lvl;
