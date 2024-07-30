@@ -1896,6 +1896,8 @@ static int hk3_enable(struct drm_panel *panel)
 			exynos_panel_send_cmd_set(ctx, &hk3_display_on_cmd_set);
 			spanel->read_vreg = true;
 		}
+
+		hk3_set_override_dimming(ctx, true);
 	}
 
 	spanel->lhbm_ctl.hist_roi_configured = false;
