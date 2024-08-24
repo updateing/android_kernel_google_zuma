@@ -34,35 +34,22 @@ static int ea_set_matrix(struct drm_crtc *crtc, unsigned int bl_lvl)
 	struct exynos_matrix matrix;
 	struct drm_property *prop_linear_matrix_override;
 	struct drm_property_blob *pblob = NULL;
-	struct drm_modeset_acquire_ctx ctx;
-	struct drm_crtc_state *crtc_state = NULL;
+	struct exynos_drm_crtc_state fake_crtc_state;
 	uint32_t blob_id;
 	__u16 ofs, coef;
 	int rc;
 
-	struct drm_atomic_state *state;
-
 	if (crtc == NULL) {
 		pr_err("crtc has not been initialized\n");
 		rc = -EIO;
-		goto exit_none;
+		goto exit;
 	}
-
-	state = drm_atomic_state_alloc(crtc->dev);
-	if (!state) {
-		pr_err("cannot allocate atomic state\n");
-		rc = -ENOMEM;
-		goto exit_none;
-	}
-
-	drm_modeset_acquire_init(&ctx, 0);
-	state->acquire_ctx = &ctx;
 
 	prop_linear_matrix_override = exynos_crtc->props.linear_matrix_override;
 	if (prop_linear_matrix_override == NULL) {
 		pr_err("linear matrix overriding is not supported by crtc\n");
 		rc = -EIO;
-		goto exit_state;
+		goto exit;
 	}
 
 	/* Will this ever happen? */
@@ -71,7 +58,7 @@ static int ea_set_matrix(struct drm_crtc *crtc, unsigned int bl_lvl)
 		pr_err("property name verification failed: %s\n",
 		       prop_linear_matrix_override->name);
 		rc = -EIO;
-		goto exit_state;
+		goto exit;
 	}
 
 	if (bl_lvl == 0) {
@@ -105,32 +92,37 @@ static int ea_set_matrix(struct drm_crtc *crtc, unsigned int bl_lvl)
 	if (IS_ERR_OR_NULL(pblob)) {
 		pr_err("failed to create blob\n");
 		rc = -ENOMEM;
-		goto exit_state;
+		goto exit;
 	}
 
 setup:
-	crtc_state = drm_atomic_get_crtc_state(state, crtc);
-	if (IS_ERR(crtc_state)) {
-		rc = PTR_ERR(crtc_state);
-		goto exit_blob;
-	}
+	/* This is not a complete DRM call, and never designed to be so.
+	 *
+	 * When exiting from LP mode (AOD), this function will be called during
+	 * userspace commit with crtc->mutex held by ourself, and we can not
+	 * use drm_crtc_get_state() here. Even if breaking AOD is acceptable,
+	 * we could not commit the change from here. I can't think of anything to
+	 * make this code less hacky.
+	 *
+	 * The crtc state here is one time use and thrown away after this call.
+	 * The crtc driver code saves the matrix into a global variable instead
+	 * upon receiving the atomic_set_property call. We need to free the
+	 * resources related to the state ourselves.
+	 */
+	memset(&fake_crtc_state, 0, sizeof(fake_crtc_state));
+	fake_crtc_state.base.crtc = crtc;
 
 	if (bl_lvl == 0)
 		blob_id = 0; // erase matrix
 	else
 		blob_id = pblob->base.id;
 
-	// This is not a complete DRM call, and never designed to be so.
-	crtc->funcs->atomic_set_property(crtc, crtc_state,
+	crtc->funcs->atomic_set_property(crtc, &fake_crtc_state.base,
 					 prop_linear_matrix_override, blob_id);
 
-exit_blob:
 	drm_property_blob_put(pblob);
-exit_state:
-	drm_atomic_state_put(state); // this frees crtc_state if allocated
-	drm_modeset_drop_locks(&ctx);
-	drm_modeset_acquire_fini(&ctx);
-exit_none:
+
+exit:
 	return rc;
 }
 
