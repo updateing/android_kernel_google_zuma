@@ -801,7 +801,7 @@ static void hk3_set_panel_feat(struct exynos_panel *ctx,
 	 *
 	 * Description: early-exit sequence overrides some configs HBM set.
 	 */
-	if (is_panel_enabled(ctx))
+	if (is_panel_enabled(ctx) && !ctx->current_mode->exynos_mode.is_lp_mode)
 		hk3_set_override_dimming(ctx, feat, false);
 	else
 		hk3_set_default_dimming(ctx, feat, false);
@@ -1605,6 +1605,9 @@ static void hk3_set_lp_mode(struct exynos_panel *ctx, const struct exynos_panel_
 
 	DPU_ATRACE_BEGIN(__func__);
 
+	if (use_linear_matrix)
+		ea_panel_calc_backlight(0); /* turn off matrix */
+
 	hk3_disable_panel_feat(ctx, vrefresh);
 	if (panel_enabled) {
 		/* init sequence has sent display-off command already */
@@ -1612,6 +1615,7 @@ static void hk3_set_lp_mode(struct exynos_panel *ctx, const struct exynos_panel_
 			hk3_wait_for_vsync_done_changeable(ctx, vrefresh, is_ns);
 		else
 			hk3_wait_for_vsync_done(ctx, vrefresh, is_ns);
+		hk3_set_default_dimming(ctx, spanel->feat, true);
 		exynos_panel_send_cmd_set(ctx, &hk3_display_off_cmd_set);
 	}
 	/* display should be off here, set dbv before entering lp mode */
@@ -1697,6 +1701,7 @@ static void hk3_set_nolp_mode(struct exynos_panel *ctx,
 	EXYNOS_DCS_BUF_ADD_SET_AND_FLUSH(ctx, aod_off);
 	hk3_update_panel_feat(ctx, drm_mode_vrefresh(&pmode->mode), true);
 	/* backlight control and dimming */
+	hk3_set_override_dimming(ctx, spanel->feat, true);
 	hk3_write_display_mode(ctx, &pmode->mode);
 	hk3_change_frequency(ctx, pmode);
 	exynos_panel_send_cmd_set(ctx, &hk3_display_on_cmd_set);
