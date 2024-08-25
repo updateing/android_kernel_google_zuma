@@ -443,16 +443,10 @@ struct hk3_freq_cmdset hk3_freq_cmdsets[HK3_FREQ_CMDSET_TYPE_MAX] = {
 
 static void hk3_send_dimming_freq_cmd(struct exynos_panel *ctx, int need_unlock, const u8 *cmd)
 {
-	struct hk3_panel *spanel = to_spanel(ctx);
-
 	if (need_unlock)
 		EXYNOS_DCS_BUF_ADD_SET(ctx, unlock_cmd_f0);
 
-	if (test_bit(FEAT_EARLY_EXIT, spanel->feat)) {
-		EXYNOS_DCS_BUF_ADD(ctx, 0xBD, 0x21, cmd[0], cmd[1], cmd[2], cmd[3]);
-	} else {
-		EXYNOS_DCS_BUF_ADD(ctx, 0xBD, 0x21, cmd[0] | 0x80, cmd[1], cmd[2], cmd[3]);
-	}
+	EXYNOS_DCS_BUF_ADD(ctx, 0xBD, 0x21, cmd[0], cmd[1], cmd[2], cmd[3]);
 
 	if (need_unlock) {
 		EXYNOS_DCS_BUF_ADD_SET(ctx, freq_update);
@@ -460,26 +454,32 @@ static void hk3_send_dimming_freq_cmd(struct exynos_panel *ctx, int need_unlock,
 	}
 }
 
-static void hk3_set_default_dimming(struct exynos_panel *ctx, int need_unlock)
+static void hk3_set_default_dimming(struct exynos_panel *ctx, const unsigned long *feat, int need_unlock)
 {
-	struct hk3_panel *spanel = to_spanel(ctx);
 	static const u8 cmd[4] = {0x01, 0x83, 0x03, 0x03};
 	static const u8 hbm_cmd[4] = {0x00, 0x83, 0x03, 0x01};
+	u8 target_cmd[4];
 
-	if (test_bit(FEAT_HBM, spanel->feat))
-		hk3_send_dimming_freq_cmd(ctx, need_unlock, hbm_cmd);
+	if (test_bit(FEAT_HBM, feat))
+		memcpy(target_cmd, hbm_cmd, 4);
 	else
-		hk3_send_dimming_freq_cmd(ctx, need_unlock, cmd);
+		memcpy(target_cmd, cmd, 4);
+
+	if (!test_bit(FEAT_EARLY_EXIT, feat))
+		target_cmd[0] |= 0x80;
+
+	hk3_send_dimming_freq_cmd(ctx, need_unlock, target_cmd);
 }
 
-static void hk3_set_override_dimming(struct exynos_panel *ctx, int need_unlock)
+static void hk3_set_override_dimming(struct exynos_panel *ctx, const unsigned long *feat, int need_unlock)
 {
 	struct hk3_panel *spanel = to_spanel(ctx);
-	bool is_hbm = test_bit(FEAT_HBM, spanel->feat);
-	bool is_ns_mode = test_bit(FEAT_OP_NS, spanel->feat);
+	bool is_hbm = test_bit(FEAT_HBM, feat);
+	bool is_ns_mode = test_bit(FEAT_OP_NS, feat);
 	bool is_sub120 = spanel->hw_vrefresh < 120;
 	struct hk3_freq_cmdset *cmdset;
 	u8 *cmd;
+	u8 target_cmd[4];
 
 	if (is_hbm)
 		cmdset = &hk3_freq_cmdsets[HK3_FREQ_CMDSET_HBM];
@@ -490,6 +490,11 @@ static void hk3_set_override_dimming(struct exynos_panel *ctx, int need_unlock)
 		cmd = (is_ns_mode || is_sub120) ? cmdset->cmd_high_brightness_ns : cmdset->cmd_high_brightness;
 	else
 		cmd = (is_ns_mode || is_sub120) ? cmdset->cmd_ns : cmdset->cmd;
+
+	memcpy(target_cmd, cmd, 4);
+
+	if (!test_bit(FEAT_EARLY_EXIT, feat))
+		cmd[0] |= 0x80;
 
 	hk3_send_dimming_freq_cmd(ctx, need_unlock, cmd);
 }
@@ -797,9 +802,9 @@ static void hk3_set_panel_feat(struct exynos_panel *ctx,
 	 * Description: early-exit sequence overrides some configs HBM set.
 	 */
 	if (is_panel_enabled(ctx))
-		hk3_set_override_dimming(ctx, 0);
+		hk3_set_override_dimming(ctx, feat, false);
 	else
-		hk3_set_default_dimming(ctx, 0);
+		hk3_set_default_dimming(ctx, feat, false);
 	EXYNOS_DCS_BUF_ADD(ctx, 0xB0, 0x00, 0x10, 0xBD);
 	val = test_bit(FEAT_EARLY_EXIT, feat) ? 0x22 : 0x00;
 	EXYNOS_DCS_BUF_ADD(ctx, 0xBD, val);
@@ -1897,7 +1902,7 @@ static int hk3_enable(struct drm_panel *panel)
 			spanel->read_vreg = true;
 		}
 
-		hk3_set_override_dimming(ctx, true);
+		hk3_set_override_dimming(ctx, spanel->feat, true);
 	}
 
 	spanel->lhbm_ctl.hist_roi_configured = false;
@@ -2143,9 +2148,10 @@ static void hk3_set_local_hbm_mode(struct exynos_panel *ctx,
 				 bool local_hbm_en)
 {
 	const struct exynos_panel_mode *pmode = ctx->current_mode;
+	struct hk3_panel *spanel = to_spanel(ctx);
 
 	if (local_hbm_en)
-		hk3_set_default_dimming(ctx, 1);
+		hk3_set_default_dimming(ctx, spanel->feat, true);
 
 	/* TODO: LHBM Position & Size */
 	hk3_write_display_mode(ctx, &pmode->mode);
@@ -2154,7 +2160,7 @@ static void hk3_set_local_hbm_mode(struct exynos_panel *ctx,
 		hk3_set_local_hbm_brightness(ctx, true);
 
 	if (!local_hbm_en) {
-		hk3_set_override_dimming(ctx, 1);
+		hk3_set_override_dimming(ctx, spanel->feat, true);
 	}
 }
 
