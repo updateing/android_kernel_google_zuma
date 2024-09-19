@@ -163,17 +163,24 @@ static void apply_thermal_pressure(struct exynos_cpufreq_domain *domain,
 {
 	cpumask_t *maskp;
 	unsigned long arch_thermal_pressure;
+	bool changed = false;
 
-	if (!domain || (domain->thermal_pressure[thermal_actor] == thermal_pressure))
+	if (!domain)
 		return;
 
 	maskp = &domain->cpus;
 
 	spin_lock(&domain->thermal_update_lock);
-	domain->thermal_pressure[thermal_actor] = thermal_pressure;
-	arch_thermal_pressure = max(domain->thermal_pressure[TJ], domain->thermal_pressure[TSKIN]);
-	arch_set_thermal_pressure(maskp, arch_thermal_pressure);
+	if (domain->thermal_pressure[thermal_actor] != thermal_pressure) {
+		domain->thermal_pressure[thermal_actor] = thermal_pressure;
+		arch_thermal_pressure = max(domain->thermal_pressure[TJ], domain->thermal_pressure[TSKIN]);
+		arch_set_thermal_pressure(maskp, arch_thermal_pressure);
+		changed = true;
+	}
 	spin_unlock(&domain->thermal_update_lock);
+
+	if (!changed)
+		return;
 
 	if (unlikely(trace_clock_set_rate_enabled()))
 		trace_clock_set_rate(domain->thermal_pressure_name[thermal_actor],
