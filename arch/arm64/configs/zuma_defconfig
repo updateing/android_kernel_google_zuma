@@ -745,7 +745,6 @@ CONFIG_EXYNOS_CORESIGHT=m
 CONFIG_BOOKERCI=m
 CONFIG_GCMA=m
 # CONFIG_PIXEL_EM is not set
-# CONFIG_VH_FS is not set
 # CONFIG_VH_MM is not set
 # CONFIG_VH_CGROUP is not set
 # CONFIG_VH_I2C is not set
