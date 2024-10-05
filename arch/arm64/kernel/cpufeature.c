@@ -143,7 +143,7 @@ static cpumask_var_t cpu_32bit_el0_mask __cpumask_var_read_mostly;
  * notifier. This is also used to decide if we could use
  * the fast path for checking constant CPU caps.
  */
-DEFINE_STATIC_KEY_FALSE(arm64_const_caps_ready);
+__visible DEFINE_STATIC_KEY_FALSE(arm64_const_caps_ready);
 EXPORT_SYMBOL(arm64_const_caps_ready);
 static inline void finalize_system_capabilities(void)
 {
@@ -156,7 +156,7 @@ void dump_cpu_features(void)
 	pr_emerg("0x%*pb\n", ARM64_NCAPS, &cpu_hwcaps);
 }
 
-DEFINE_STATIC_KEY_ARRAY_FALSE(cpu_hwcap_keys, ARM64_NCAPS);
+__visible DEFINE_STATIC_KEY_ARRAY_FALSE(cpu_hwcap_keys, ARM64_NCAPS);
 EXPORT_SYMBOL(cpu_hwcap_keys);
 
 #define __ARM64_FTR_BITS(SIGNED, VISIBLE, STRICT, TYPE, SHIFT, WIDTH, SAFE_VAL) \

@@ -15,7 +15,7 @@
 #include <kvm/arm_pmu.h>
 #include <kvm/arm_vgic.h>
 
-DEFINE_STATIC_KEY_FALSE(kvm_arm_pmu_available);
+__visible DEFINE_STATIC_KEY_FALSE(kvm_arm_pmu_available);
 
 static LIST_HEAD(arm_pmus);
 static DEFINE_MUTEX(arm_pmus_lock);
